@@ -42,64 +42,30 @@ contract UkrSpirit is ERC721, ERC721Enumerable, ERC721URIStorage, Pausable, Owna
 
     mapping(uint8 => uint256) imagesQuantityPerType;
 
-
-    address public charityReceiver;
-    address public team;
     string public baseURI;
 
     bool public privateSale = true;
 
     uint256 public totalSales;
 
-    constructor(address _team, address _charityReceiver) ERC721("UkrSpirit", "UKRSPRT") {
-        charityReceiver = _charityReceiver;
-        team = _team;
+    function setupType(
+        uint8 _type,
+        uint256 _price,
+        uint256 _imagesQuantity, uint256 _limit
+    ) private {
+        priceForType[_type] = _price; imagesQuantityPerType[_type] = _imagesQuantity;
+        for (uint8 x = 0; x < _imagesQuantity; x++) {
+            limitForTypeForImageNumber[_type][x] = _limit;
+        }
+    }
 
+    constructor() ERC721("UkrSpirit", "UKRSPRT") {
         baseURI = "ipfs://QmbQVDxwB7yfoYiS7BmfbKGHFzdqcE3MvmZLGCaYe7Wsxt/";
-        uint256 [] memory percents = new uint256 [](2);
-        percents[0] = 85;
-        percents[1] = 15;
-        address [] memory addresses = new address [](2);
-        addresses[0] = 0x4f476c35F1d823C24c476DB1eEcb97DB3A6A49a1;
-        addresses[1] = 0x9917A225d8e40Ed471598Ec1CF5470B0406eEE85;
-
-        setDistributionAddresses(addresses,percents);
-
-        priceForType[TYPE_HELP] = 500000000000000000;
-        priceForType[TYPE_UNITY] = 700000000000000000;
-        priceForType[TYPE_WILL] = 100000000000000000;
-        priceForType[TYPE_LOVE] = 200000000000000000;
-        priceForType[TYPE_PEACE] = 300000000000000000;
-
-        imagesQuantityPerType[TYPE_HELP] = 15;
-        for(uint8 x=0;x<imagesQuantityPerType[TYPE_HELP];x++) {
-            limitForTypeForImageNumber[TYPE_HELP][x] = 777;
-        }
-
-        imagesQuantityPerType[TYPE_UNITY] = 11;
-        for(uint8 x=0;x<imagesQuantityPerType[TYPE_UNITY];x++) {
-            limitForTypeForImageNumber[TYPE_UNITY][x] = 155;
-        }
-
-        imagesQuantityPerType[TYPE_WILL] = 7;
-        for(uint8 x=0;x<imagesQuantityPerType[TYPE_WILL];x++) {
-            limitForTypeForImageNumber[TYPE_WILL][x] = 31;
-        }
-
-        imagesQuantityPerType[TYPE_LOVE] = 4;
-        for(uint8 x=0;x<imagesQuantityPerType[TYPE_LOVE];x++) {
-            limitForTypeForImageNumber[TYPE_LOVE][x] = 6;
-        }
-
-        imagesQuantityPerType[TYPE_PEACE] = 2;
-        for(uint8 x=0;x<imagesQuantityPerType[TYPE_PEACE];x++) {
-            limitForTypeForImageNumber[TYPE_PEACE][x] = 1;
-        }
-        /* 0,08	777
-            0,4	99
-            4	55
-            40	12
-            80	3*/
+        setupType(TYPE_HELP, 0.5 ether, 15, 777);
+        setupType(TYPE_UNITY, 0.7 ether, 11, 155);
+        setupType(TYPE_WILL, 0.1 ether, 7, 31);
+        setupType(TYPE_LOVE, 0.2 ether, 4, 6);
+        setupType(TYPE_PEACE, 0.3 ether, 2, 1);
     }
 
 
@@ -124,13 +90,6 @@ contract UkrSpirit is ERC721, ERC721Enumerable, ERC721URIStorage, Pausable, Owna
         imagesQuantityPerType[typeNft] = imagesQuantity;
     }
 
-    function setCharityReceiver(address _charityReceiver) public onlyOwner {
-        charityReceiver = _charityReceiver;
-    }
-
-    function setTeam(address _team) public onlyOwner {
-        team = _team;
-    }
 
     struct ItemFullData {
         string nftURI;
@@ -139,7 +98,7 @@ contract UkrSpirit is ERC721, ERC721Enumerable, ERC721URIStorage, Pausable, Owna
         uint256 imageNumber;
     }
 
-    function getDirFor(uint8 typesIndex) public view returns (string memory) {
+    function getDirFor(uint8 typesIndex) public pure returns (string memory) {
         string memory dirName;
         if (typesIndex == TYPE_HELP) dirName = "help";
         if (typesIndex == TYPE_LOVE) dirName = "love";
@@ -174,13 +133,6 @@ contract UkrSpirit is ERC721, ERC721Enumerable, ERC721URIStorage, Pausable, Owna
         return allItems;
     }
 
-    function getCharityReceiver() public view returns (address) {
-        return charityReceiver;
-    }
-
-    function getTeam() public view returns (address) {
-        return team;
-    }
 
     function getPriceForType(uint8 typeNft) public view returns (uint256) {
         return priceForType[typeNft];
@@ -250,28 +202,31 @@ contract UkrSpirit is ERC721, ERC721Enumerable, ERC721URIStorage, Pausable, Owna
 
     event Purchase(address indexed from, uint256 value, uint8 typeNft, uint8 finalTypeNft, uint8 imageNumber);
 
-    mapping(address => uint256) distributionPercent;
-    mapping(uint256 => address) distributionAddresses;
-    uint256 public distributionAddressesCount;
+    uint256[] public distributionPercent;
+    address[] distributionAddresses;
 
     function setDistributionAddresses(address [] memory _distributionAddresses, uint256 [] memory _percents) public onlyOwner {
-        for(uint256 x=0;x<_distributionAddresses.length;x++) {
-            distributionPercent[_distributionAddresses[x]] = _percents[x];
-            distributionAddresses[x] = _distributionAddresses[x];
-        }
-        distributionAddressesCount = _distributionAddresses.length;
+        distributionPercent = _percents;
+        distributionAddresses = _distributionAddresses;
     }
 
 
     function purchase (uint8 typeNft, uint8 imageNumber) payable public {
         if (privateSale) require(msg.value >= 300000000000000000, "UkrSpirit: minimal 0.3 amount for private sale");
         require(msg.value >= priceForTypeFinal(typeNft), "UkrSpirit: wrong value to send");
-        for(uint256 x=0;x<distributionAddressesCount;x++) {
-            payable(distributionAddresses[x]).transfer(msg.value.mul(distributionPercent[distributionAddresses[x]]).div(100));
+        uint256 amountSent;
+        for(uint256 x=0;x<distributionAddresses.length - 1;x++) {
+            uint amountToSend = msg.value.mul(distributionPercent[x]).div(100);
+            (bool success, ) = distributionAddresses[x].call{value:amountToSend}("");
+            require(success, "UkrSpirit: Transfer failed.");
+            amountSent = amountSent + amountToSend;
         }
-        _safeMintType(msg.sender, "", typeNft, imageNumber, false);
+        (bool success, ) = distributionAddresses[distributionAddresses.length - 1].call{value:msg.value.sub(amountSent)}("");
+        require(success, "UkrSpirit: Transfer failed.");
+
         totalSales = totalSales + msg.value;
         emit Purchase(msg.sender, msg.value,typeNft, typeNft, imageNumber);
+        _safeMintType(msg.sender, "", typeNft, imageNumber, false);
     }
 
     function purchaseBatch(uint8[] memory typesNft, uint8 [] memory imageNumbers, uint256 count) payable public {
@@ -286,9 +241,16 @@ contract UkrSpirit is ERC721, ERC721Enumerable, ERC721URIStorage, Pausable, Owna
             _safeMintType(msg.sender, "", typesNft[y], imageNumbers[y], false);
             emit Purchase(msg.sender, priceForTypeFinal(typesNft[y]), typesNft[y], typesNft[y], imageNumbers[y]);
         }
-        for(uint256 x=0;x<distributionAddressesCount;x++) {
-            payable(distributionAddresses[x]).transfer(msg.value.mul(distributionPercent[distributionAddresses[x]]).div(100));
+
+        uint256 amountSent;
+        for(uint256 x=0;x<distributionAddresses.length - 1;x++) {
+            uint amountToSend = msg.value.mul(distributionPercent[x]).div(100);
+            (bool success, ) = distributionAddresses[x].call{value:amountToSend}("");
+            require(success, "UkrSpirit: Transfer failed.");
+            amountSent = amountSent + amountToSend;
         }
+        (bool success, ) = distributionAddresses[distributionAddresses.length - 1].call{value:msg.value.sub(amountSent)}("");
+        require(success, "UkrSpirit: Transfer failed.");
         totalSales = totalSales + msg.value;
     }
 
